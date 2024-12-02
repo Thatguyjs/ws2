@@ -1,0 +1,9 @@
+[package]
+name = "ws2"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+httparse = "1.8.0"
+percent-encoding = "2.3.0"
+polling = "2.8.0"
