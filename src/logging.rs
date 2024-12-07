@@ -1,4 +1,5 @@
-use std::{fmt::Arguments, io::Write};
+use std::{fmt::Arguments, io::{Stdout, Write}, sync::{Arc, Mutex}};
+
 
 #[macro_export]
 macro_rules! log {
@@ -19,6 +20,7 @@ macro_rules! log {
 }
 
 
+#[derive(Clone, Debug, PartialEq, PartialOrd)]
 pub enum LogLevel {
     Debug,
     Warning,
@@ -26,21 +28,42 @@ pub enum LogLevel {
     Info
 }
 
-
-pub struct Logger<D: Write> {
-    log_level: LogLevel,
-    dest: D
+impl ToString for LogLevel {
+    fn to_string(&self) -> String {
+        format!("[{:?}]", self)
+    }
 }
 
-impl<D: Write> Logger<D> {
-    pub fn new(log_level: LogLevel, destination: D) -> Self {
+
+#[derive(Clone)]
+pub struct Logger {
+    log_level: LogLevel,
+    dest: Arc<Mutex<Stdout>>
+}
+
+impl Logger {
+    pub fn new(log_level: LogLevel) -> Self {
         Logger {
             log_level,
-            dest: destination
+            dest: Arc::new(Mutex::new(std::io::stdout()))
         }
     }
 
-    pub fn log(&mut self, _level: LogLevel, _args: Arguments) {
-        todo!("Log stuff");
+    pub fn log(&self, level: LogLevel, args: Arguments) {
+        if level < self.log_level {
+            return;
+        }
+
+        if let Ok(mut dest) = self.dest.lock() {
+            let prefix = level.to_string();
+            let result = dest.write(prefix.as_bytes())
+                .and_then(|_| dest.write(b": "))
+                .and_then(|_| dest.write_fmt(args))
+                .and_then(|_| dest.flush());
+
+            if let Err(e) = result {
+                eprintln!("Error while writing to log: {e}");
+            }
+        }
     }
 }

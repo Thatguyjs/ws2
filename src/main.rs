@@ -1,5 +1,4 @@
 use std::{process::exit, rc::Rc};
-use std::sync::Arc;
 
 mod client;
 mod config;
@@ -7,11 +6,12 @@ mod http;
 mod logging;
 
 use config::Config;
+use httparse::Request;
 use logging::{Logger, LogLevel};
 
 
 fn main() {
-    let mut logger = Arc::new(Logger::new(LogLevel::Warning, std::io::stdout()));
+    let mut logger = Logger::new(LogLevel::Warning);
 
     let cfg = match config::load_config() {
         Ok(cfg) => cfg,
@@ -32,8 +32,8 @@ fn main() {
 }
 
 
-fn on_request<D: std::io::Write>(request: http::Request, config: Rc<Config>, logger: Arc<Logger<D>>) -> http::Result {
-    log!(logger, "Request made: \"{}\"", request.url);
+fn on_request(request: Request, config: Rc<Config>, logger: Logger) -> http::Result {
+    log!(logger, "Request made: \"{:?}\"", request.path);
 
-    Ok(http::Response::with_status(200).body("Sample page").build())
+    Ok(http::Response::with_status(200))
 }

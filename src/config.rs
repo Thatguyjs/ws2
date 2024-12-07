@@ -1,5 +1,7 @@
 use std::{net::{IpAddr, Ipv6Addr}, str::FromStr};
 
+use crate::logging::LogLevel;
+
 
 #[derive(Debug)]
 pub enum ErrorKind {
@@ -54,14 +56,16 @@ impl From<std::num::ParseIntError> for Error {
 
 pub struct Config {
     pub ip: IpAddr,
-    pub port: u16
+    pub port: u16,
+    pub log_level: LogLevel
 }
 
 impl Default for Config {
     fn default() -> Self {
         Config {
             ip: IpAddr::V6(Ipv6Addr::LOCALHOST),
-            port: 8080
+            port: 8080,
+            log_level: LogLevel::Warning
         }
     }
 }
@@ -87,5 +91,6 @@ pub fn load_config() -> Result<Config, Error> {
         }
     }
 
-    todo!()
+    Ok(cfg)
+    // todo!()
 }
