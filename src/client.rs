@@ -66,6 +66,17 @@ impl Clients {
         dead
     }
 
+    // Remove a specific client
+    pub fn remove(&mut self, key: &usize) -> Option<Client> {
+        match self.clients.remove(key) {
+            Some(client) => {
+                self.lifetimes.retain(|k| k != key);
+                Some(client)
+            },
+            None => None
+        }
+    }
+
     // Returns the lowest lifetime
     pub fn lowest_lifetime(&self) -> Option<Duration> {
         let key = self.lifetimes.front()?;

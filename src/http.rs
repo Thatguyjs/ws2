@@ -58,7 +58,7 @@ impl Server {
                 log!(self.logger, LogLevel::Error, "Error waiting for events: {}", e);
             }
 
-            log!(self.logger, LogLevel::Info, "Poll loop, events: {}", events.len());
+            log!(self.logger, LogLevel::Debug, "Poll loop, events: {}", events.len());
 
             // Subtract the elapsed time from all clients
             let now = Instant::now();
@@ -70,12 +70,13 @@ impl Server {
             if events.len() == 0 {
                 let removed = self.clients.remove_inactive();
 
-                for stream in removed {
-                    if let Err(e) = self.poller.delete(&stream.stream) {
-                        log!(self.logger, LogLevel::Error, "Error Removing Poller Stream: {}", e);
+                for client in &removed {
+                    if let Err(e) = self.poller.delete(&client.stream) {
+                        log!(self.logger, LogLevel::Error, "Error removing poller stream: {}", e);
                     }
                 }
 
+                log!(self.logger, LogLevel::Info, "Timed out {} clients (total: {})", removed.len(), self.clients.len());
                 continue;
             }
 
@@ -83,18 +84,16 @@ impl Server {
             for ev in &events {
                 // TcpListener event
                 if ev.key == 0 {
-                    println!("Listener event");
-
                     match self.listener.accept() {
                         // Add a client and register it with the poller
                         Ok((stream, peer_addr)) => {
                             let (key, client) = self.clients.add(stream, peer_addr);
 
-                            if let Err(e) = self.poller.add_with_mode(&client.stream, Event::readable(key), PollMode::Level) {
-                                log!(self.logger, LogLevel::Error, "Error adding client to poller: {}", e);
+                            match self.poller.add_with_mode(&client.stream, Event::readable(key), PollMode::Level) {
+                                Err(e) => log!(self.logger, LogLevel::Error, "Error adding client to poller: {}", e),
+                                Ok(_) => log!(self.logger, LogLevel::Info, "New client: {} (total: {})", key, self.clients.len())
                             }
 
-                            println!("Added client ({} total)", self.clients.len());
                         },
 
                         Err(e) => log!(self.logger, LogLevel::Error, "Error accepting TcpStream: {}", e)
@@ -102,14 +101,38 @@ impl Server {
                 }
 
                 // Client event
-                else {
-                    println!("Client event {} clients", self.clients.len());
+                else if let Some(client) = self.clients.get_mut(ev.key) {
                     let mut buf = Box::new([0u8; 2048]);
-                    let read = self.clients.get_mut(ev.key).unwrap().read(buf.as_mut_slice());
 
-                    // TODO: Kill client if 0 bytes read (usually indicates closed socket)
+                    match client.read(buf.as_mut_slice()) {
+                        // No bytes to read, usually indicates closed remote side, so we just
+                        // remove the client
+                        Ok(n) if n == 0 => {
+                            match self.clients.remove(&ev.key) {
+                                Some(client) => {
+                                    match self.poller.delete(&client.stream) {
+                                        Err(e) => log!(self.logger, LogLevel::Error, "Error removing poller stream: {}", e),
+                                        Ok(_) => log!(self.logger, LogLevel::Info, "Client {} removed (total: {})", ev.key, self.clients.len())
+                                    }
+                                },
 
-                    println!("{read:?} bytes read");
+                                None => log!(self.logger, LogLevel::Warning, "Failed to find client with key: {}", ev.key)
+                            }
+                        },
+
+                        // Some bytes read, do something with the request
+                        Ok(n) if n > 0 => {
+                            log!(self.logger, LogLevel::Info, "TODO: Respond to request len: {}", n);
+                        },
+
+                        Err(e) => log!(self.logger, LogLevel::Error, "Error reading from socket: {}", e),
+                        Ok(_) => unreachable!()
+                    }
+                }
+
+                // Couldn't find Client matching `ev.key`
+                else {
+                    log!(self.logger, LogLevel::Warning, "Failed to find client with key: {}", ev.key);
                 }
             }
         }
