@@ -11,7 +11,7 @@ use logging::{Logger, LogLevel};
 
 
 fn main() {
-    let mut logger = Logger::new(LogLevel::Warning);
+    let logger = Logger::new(LogLevel::Warning);
 
     let cfg = match config::load_config() {
         Ok(cfg) => cfg,

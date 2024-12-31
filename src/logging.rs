@@ -1,4 +1,4 @@
-use std::{fmt::Arguments, io::{Stdout, Write}, sync::{Arc, Mutex}};
+use std::{fmt::Display, io::{Stdout, Write}, sync::{Arc, Mutex}};
 
 
 #[macro_export]
@@ -28,9 +28,20 @@ pub enum LogLevel {
     Info
 }
 
+impl LogLevel {
+    fn color(&self) -> &'static str {
+        match self {
+            LogLevel::Debug => "\x1b[90;3m",
+            LogLevel::Warning => "\x1b[93;1m",
+            LogLevel::Error => "\x1b[91;1m",
+            LogLevel::Info => "\x1b[36m"
+        }
+    }
+}
+
 impl ToString for LogLevel {
     fn to_string(&self) -> String {
-        format!("[{:?}]", self)
+        format!("{}[{:?}]\x1b[0m", self.color(), self)
     }
 }
 
@@ -49,17 +60,17 @@ impl Logger {
         }
     }
 
-    pub fn log(&self, level: LogLevel, args: Arguments) {
+    pub fn log<D: Display>(&self, level: LogLevel, args: D) {
         if level < self.log_level {
-            return;
+            //return;
         }
 
         if let Ok(mut dest) = self.dest.lock() {
             let prefix = level.to_string();
             let result = dest.write(prefix.as_bytes())
                 .and_then(|_| dest.write(b": "))
-                .and_then(|_| dest.write_fmt(args))
-                .and_then(|_| dest.flush());
+                .and_then(|_| dest.write(args.to_string().as_bytes()))
+                .and_then(|_| dest.write(b"\n"));
 
             if let Err(e) = result {
                 eprintln!("Error while writing to log: {e}");
