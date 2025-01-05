@@ -92,5 +92,4 @@ pub fn load_config() -> Result<Config, Error> {
     }
 
     Ok(cfg)
-    // todo!()
 }

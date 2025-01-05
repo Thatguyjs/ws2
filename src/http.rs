@@ -1,28 +1,15 @@
 use std::{io::{self, Read}, net::{IpAddr, SocketAddr, TcpListener}, rc::Rc, time::Instant};
 
-use httparse::{Request, Status, EMPTY_HEADER};
+use httparse::{Request, EMPTY_HEADER};
 use polling::{Event, PollMode, Poller};
 
-use crate::{client::{Client, Clients}, config::Config, log, logging::{LogLevel, Logger}};
-
-
-pub struct HttpError {
-    status: u16,
-    mime: &'static str,
-    message: String,
-}
-
-impl HttpError {
-    pub fn new<S: ToString>(status: u16, mime: &'static str, message: S) -> Self {
-        HttpError { status, mime, message: message.to_string() }
-    }
-}
+use crate::{client::Clients, config::Config, log, logging::{LogLevel, Logger}, response::{Status, Response, Builder}};
 
 
 pub struct Server {
     listener: TcpListener,
     clients: Clients,
-    config: Config,
+    config: Rc<Config>,
     poller: Poller,
     logger: Logger,
 }
@@ -32,18 +19,18 @@ impl Server {
         Ok(Server {
             listener: TcpListener::bind(SocketAddr::new(address, port))?,
             clients: Clients::new(),
-            config: Config::default(),
+            config: Rc::new(Config::default()),
             poller: Poller::new()?,
             logger
         })
     }
 
     pub fn with_config(mut self, config: Config) -> Self {
-        self.config = config;
+        self.config = Rc::new(config);
         self
     }
 
-    pub fn listen<F: Fn(httparse::Request, Rc<Config>, Logger) -> Result>(mut self, cb: F) {
+    pub fn listen<F: Fn(httparse::Request, Rc<Config>, Logger) -> Response>(mut self, cb: F) {
         if let Err(e) = self.poller.add_with_mode(&self.listener, Event::readable(0), PollMode::Level) {
             log!(self.logger, LogLevel::Error, "Error adding TcpListener to Poller: {}", e);
         }
@@ -58,7 +45,7 @@ impl Server {
                 log!(self.logger, LogLevel::Error, "Error waiting for events: {}", e);
             }
 
-            log!(self.logger, LogLevel::Debug, "Poll loop, events: {}", events.len());
+            log!(self.logger, LogLevel::Debug, "Processing {} event(s)", events.len());
 
             // Subtract the elapsed time from all clients
             let now = Instant::now();
@@ -76,7 +63,7 @@ impl Server {
                     }
                 }
 
-                log!(self.logger, LogLevel::Info, "Timed out {} clients (total: {})", removed.len(), self.clients.len());
+                log!(self.logger, LogLevel::Info, "Timed out {} client(s) (total: {})", removed.len(), self.clients.len());
                 continue;
             }
 
@@ -93,7 +80,6 @@ impl Server {
                                 Err(e) => log!(self.logger, LogLevel::Error, "Error adding client to poller: {}", e),
                                 Ok(_) => log!(self.logger, LogLevel::Info, "New client: {} (total: {})", key, self.clients.len())
                             }
-
                         },
 
                         Err(e) => log!(self.logger, LogLevel::Error, "Error accepting TcpStream: {}", e)
@@ -120,9 +106,42 @@ impl Server {
                             }
                         },
 
-                        // Some bytes read, do something with the request
+                        // Some bytes read, parse the Request and do something with it
                         Ok(n) if n > 0 => {
-                            log!(self.logger, LogLevel::Info, "TODO: Respond to request len: {}", n);
+                            let mut headers = [EMPTY_HEADER; 32];
+                            let mut req = Request::new(&mut headers);
+
+                            // TODO: Move this match block into a separate function to make error
+                            // handling (failed to send response) easier
+                            match req.parse(&buf[0..n]) {
+                                Ok(httparse::Status::Complete(_)) => {
+                                    let response = cb(req, self.config.clone(), self.logger.clone());
+                                    let status = response.status.clone();
+
+                                    match client.send(response) {
+                                        Ok(()) => log!(self.logger, LogLevel::Debug, "Sent response: {:?}", status),
+                                        Err(e) => log!(self.logger, LogLevel::Error, "Error sending response: {}", e)
+                                    }
+                                },
+                                Ok(httparse::Status::Partial) => {
+                                    log!(self.logger, LogLevel::Warning, "Partial request, replying with 400 Bad Request");
+
+                                    let res = Response::text(Status::BadRequest, "400 Bad Request");
+
+                                    if let Err(e) = client.send(res) {
+                                        log!(self.logger, LogLevel::Error, "Error sending response: {}", e);
+                                    }
+                                },
+                                Err(e) => {
+                                    log!(self.logger, LogLevel::Error, "Bad request: {}", e);
+
+                                    let res = Response::text(Status::BadRequest, "400 Bad Request");
+
+                                    if let Err(e) = client.send(res) {
+                                        log!(self.logger, LogLevel::Error, "Error sending response: {}", e);
+                                    }
+                                }
+                            }
                         },
 
                         Err(e) => log!(self.logger, LogLevel::Error, "Error reading from socket: {}", e),
@@ -138,21 +157,3 @@ impl Server {
         }
     }
 }
-
-
-pub struct Response {
-    status: u16,
-    data: Vec<u8>
-}
-
-impl Response {
-    pub fn with_status(status: u16) -> Self {
-        Response {
-            status,
-            data: vec![]
-        }
-    }
-}
-
-
-pub type Result = std::result::Result<Response, HttpError>;

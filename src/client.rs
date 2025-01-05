@@ -1,6 +1,8 @@
 // A singular HTTP connection
 
-use std::{collections::{HashMap, VecDeque}, io, net::{SocketAddr, TcpStream}, time::Duration};
+use std::{collections::{HashMap, VecDeque}, io::{self, Write}, net::{SocketAddr, TcpStream}, time::Duration};
+
+use crate::response::Response;
 
 
 #[derive(Debug)]
@@ -101,6 +103,10 @@ impl Client {
         }
     }
 
+    pub fn send(&mut self, response: Response) -> io::Result<()> {
+        self.stream.write_all(&response.try_into_bytes()?)
+    }
+
     pub fn take_stream(self) -> TcpStream {
         self.stream
     }
@@ -109,5 +115,15 @@ impl Client {
 impl io::Read for Client {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         self.stream.read(buf)
+    }
+}
+
+impl io::Write for Client {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.stream.write(buf)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        self.stream.flush()
     }
 }

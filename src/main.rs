@@ -4,10 +4,12 @@ mod client;
 mod config;
 mod http;
 mod logging;
+mod response;
 
 use config::Config;
 use httparse::Request;
 use logging::{Logger, LogLevel};
+use response::{Builder, Response, Status};
 
 
 fn main() {
@@ -32,8 +34,11 @@ fn main() {
 }
 
 
-fn on_request(request: Request, config: Rc<Config>, logger: Logger) -> http::Result {
-    log!(logger, "Request made: \"{:?}\"", request.path);
+fn on_request(request: Request, _config: Rc<Config>, logger: Logger) -> Response {
+    log!(logger, "Request made: \"{}\"", request.path.expect("No path??"));
 
-    Ok(http::Response::with_status(200))
+    let res = Builder::with_status(Status::Ok)
+        .set_body("Sample text".into());
+
+    res.build()
 }
