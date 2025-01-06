@@ -1,11 +1,12 @@
 // Build & send HTTP Responses
 
-use std::io::Write;
+use std::{io::Write, path::Path};
 
 
 // pub type Result = std::result::Result<Response, HttpError>;
 
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub enum Status {
     // 2xx
@@ -23,6 +24,7 @@ pub enum Status {
     Unauthorized,
     Forbidden,
     NotFound,
+    MethodNotAllowed,
     TooManyRequests,
 
     // 5xx
@@ -45,12 +47,58 @@ impl Status {
             Status::Unauthorized => "401 Unauthorized",
             Status::Forbidden => "403 Forbidden",
             Status::NotFound => "404 Not Found",
+            Status::MethodNotAllowed => "405 Method Not Allowed",
             Status::TooManyRequests => "429 Too Many Requests",
 
             Status::InternalServerError => "500 Internal Server Error",
             Status::ServiceUnavailable => "503 Service Unavailable"
         }
     }
+}
+
+
+// Returns a MIME type from a filepath
+pub fn mime_from_path(path: &Path) -> Option<&'static str> {
+    Some(match path.extension()?.to_str()? {
+        "aac" => "audio/aac",
+        "apng" => "image/apng",
+        "avif" => "image/avif",
+        "bin" => "application/octet-stream",
+        "bmp" => "image/bmp",
+        "css" => "text/css",
+        "csv" => "text/csv",
+        "gif" => "image/gif",
+        "htm" | "html" => "text/html",
+        "ico" => "image/x-icon",
+        "jpg" | "jpeg" => "image/jpeg",
+        "js" | "mjs" => "text/javascript",
+        "json" => "application/json",
+        "m4a" => "audio/mp4",
+        "mp3" => "audio/mp3",
+        "mp4" => "video/mp4",
+        "mpeg" => "video/mpeg",
+        "oga" => "audio/ogg",
+        "ogv" => "video/ogg",
+        "ogx" => "application/ogg",
+        "opus" => "audio/ogg",
+        "otf" => "font/otf",
+        "png" => "image/png",
+        "pdf" => "application/pdf",
+        "svg" => "image/svg+xml",
+        "tif" | "tiff" => "image/tiff",
+        "ttf" => "font/ttf",
+        "txt" => "text/plain",
+        "wav" => "audio/wav",
+        "weba" => "audio/webm",
+        "webm" => "video/webm",
+        "webp" => "image/webp",
+        "woff" => "font/woff",
+        "woff2" => "font/woff2",
+        "xml" => "text/xml",
+        "zip" => "application/zip",
+
+        _ => return None
+    })
 }
 
 

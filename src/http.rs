@@ -3,7 +3,7 @@ use std::{io::{self, Read}, net::{IpAddr, SocketAddr, TcpListener}, rc::Rc, time
 use httparse::{Request, EMPTY_HEADER};
 use polling::{Event, PollMode, Poller};
 
-use crate::{client::Clients, config::Config, log, logging::{LogLevel, Logger}, response::{Status, Response, Builder}};
+use crate::{client::Clients, config::Config, log, logging::{LogLevel, Logger}, response::{Status, Response}};
 
 
 pub struct Server {

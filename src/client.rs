@@ -106,10 +106,6 @@ impl Client {
     pub fn send(&mut self, response: Response) -> io::Result<()> {
         self.stream.write_all(&response.try_into_bytes()?)
     }
-
-    pub fn take_stream(self) -> TcpStream {
-        self.stream
-    }
 }
 
 impl io::Read for Client {

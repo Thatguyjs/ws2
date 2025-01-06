@@ -1,4 +1,4 @@
-use std::{net::{IpAddr, Ipv6Addr}, str::FromStr};
+use std::{net::{IpAddr, Ipv6Addr}, path::PathBuf, str::FromStr};
 
 use crate::logging::LogLevel;
 
@@ -57,6 +57,7 @@ impl From<std::num::ParseIntError> for Error {
 pub struct Config {
     pub ip: IpAddr,
     pub port: u16,
+    pub directory: PathBuf,
     pub log_level: LogLevel
 }
 
@@ -65,6 +66,7 @@ impl Default for Config {
         Config {
             ip: IpAddr::V6(Ipv6Addr::LOCALHOST),
             port: 8080,
+            directory: PathBuf::from("."),
             log_level: LogLevel::Warning
         }
     }
@@ -85,6 +87,11 @@ pub fn load_config() -> Result<Config, Error> {
             "--port" | "-p" => {
                 let port = args.next().ok_or(Error::new(ErrorKind::MissingArg, "Missing argument for --port"))?;
                 cfg.port = port.parse()?;
+            },
+
+            "--directory" | "-d" => {
+                let dir = args.next().ok_or(Error::new(ErrorKind::MissingArg, "Missing argument for --directory"))?;
+                cfg.directory = PathBuf::from(dir);
             },
 
             _ => return Err(Error::new(ErrorKind::UnknownOption, format!("Unknown option: \"{}\"", arg)))
