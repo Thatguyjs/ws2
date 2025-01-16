@@ -3,6 +3,9 @@ use std::{net::{IpAddr, Ipv6Addr}, path::PathBuf, str::FromStr};
 use crate::logging::LogLevel;
 
 
+const HELP_MSG: &'static str = include_str!("./help.msg");
+
+
 #[derive(Debug)]
 pub enum ErrorKind {
     UnknownOption,
@@ -79,7 +82,12 @@ pub fn load_config() -> Result<Config, Error> {
 
     while let Some(arg) = args.next() {
         match arg.as_str() {
-            "--addr" | "-a" => {
+            "--help" | "-h" => {
+                println!("{HELP_MSG}");
+                std::process::exit(0);
+            },
+
+            "--address" | "-a" => {
                 let ip = args.next().ok_or(Error::new(ErrorKind::MissingArg, "Missing argument for --addr"))?;
                 cfg.ip = IpAddr::from_str(&ip)?;
             },
